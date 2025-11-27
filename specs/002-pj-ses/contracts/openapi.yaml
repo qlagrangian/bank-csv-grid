@@ -1,0 +1,92 @@
+openapi: 3.0.3
+info:
+  title: bank-csv-grid Tagging & Report API
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/tags:
+    get:
+      summary: List tags (tree)
+      parameters:
+        - in: query
+          name: active
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create or update a tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string, nullable: true }
+                name: { type: string }
+                parentId: { type: string, nullable: true }
+                order: { type: number, nullable: true }
+                active: { type: boolean, nullable: true }
+      responses:
+        "200": { description: Upserted }
+  /api/transactions/{id}/tags:
+    get:
+      summary: Get tags on a transaction
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    put:
+      summary: Replace tags on a transaction (leaf tags)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tagIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        "204": { description: No Content }
+  /api/export:
+    get:
+      summary: Export report CSV
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: bank
+          schema: { type: string }
+      responses:
+        "200": { description: CSV stream }
+  /api/report:
+    get:
+      summary: Hierarchical report
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: bank
+          schema: { type: string }
+      responses:
+        "200": { description: OK }

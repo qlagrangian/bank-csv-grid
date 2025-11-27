@@ -5,11 +5,10 @@ async function main() {
   // 重複チェック（idempotentなseedにするため）
   const tags = ['A勘定', 'B勘定', '内部経費'];
   for (const name of tags) {
-    await prisma.tag.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
+    const exists = await prisma.tag.findFirst({ where: { name } });
+    if (!exists) {
+      await prisma.tag.create({ data: { name } });
+    }
   }
 }
 

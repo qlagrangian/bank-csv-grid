@@ -24,13 +24,41 @@ model Transaction {
   debit       Float
   balance     Float?
   memo        String?
-  tag         String?    // ← 新規追加
+  tag         String?
   createdAt   DateTime @default(now())
+  // relations
+  tagAssignments TagAssignment[]
 }
 
 model Tag {
   id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  name      String
+  parentId  String?
+  order     Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // self relations
+  parent   Tag?    @relation("TagToChildren", fields: [parentId], references: [id])
+  children Tag[]   @relation("TagToChildren")
+
+  // relations
+  assignments TagAssignment[]
+
+  @@unique([parentId, name])
+}
+
+model TagAssignment {
+  id            String       @id @default(cuid())
+  transactionId String
+  tagId         String
+  createdBy     String?
+  createdAt     DateTime     @default(now())
+
+  // relations
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  tag         Tag         @relation(fields: [tagId], references: [id])
+
+  @@unique([transactionId, tagId])
 }
