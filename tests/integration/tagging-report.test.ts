@@ -15,22 +15,27 @@ describe('Story: タグ作成 → 取引付与 → レポート/エクスポー�
 	});
 
 	it('最小シナリオが通る', async () => {
-		// 1) タグ作成（現状APIはnameのみ）
-		const t1 = await tagsPOST({ json: async () => ({ name: 'PJ収入の部' }) } as any);
-		expect(t1.status).toBe(201);
-		const t2 = await tagsPOST({ json: async () => ({ name: 'SES' }) } as any);
-		expect([201, 409]).toContain(t2.status);
+		// 1) タグ作成（階層: 親→子）
+		const parentRes = await tagsPOST({ json: async () => ({ name: 'PJ収入の部' }) } as any);
+		expect(parentRes.status).toBe(201);
+		const parent = await parentRes.json();
+		const leafRes = await tagsPOST({ json: async () => ({ name: 'SES', parentId: parent.id }) } as any);
+		expect([201, 409]).toContain(leafRes.status);
+		const leaf = leafRes.status === 201 ? await leafRes.json() : await prisma.tag.findFirst({ where: { name: 'SES' } });
 
-		// 2) 取引作成（レガシー単一タグ列に保存）
+		// 2) 取引作成（tag列は使わない）
 		await prisma.transaction.createMany({
 			data: [
-				{ id: 'tx1', bank: 'paypay', date: new Date('2025-01-02'), description: '売上', credit: 10000, debit: 0, balance: 10000, memo: 'm1', tag: 'SES' },
-				{ id: 'tx2', bank: 'paypay', date: new Date('2025-01-03'), description: '費用', credit: 0, debit: 2000, balance: 8000, memo: 'm2', tag: 'PJ収入の部' },
+				{ id: 'tx1', bank: 'paypay', date: new Date('2025-01-02'), description: '売上', credit: 10000, debit: 0, balance: 10000, memo: 'm1', tag: null },
+				{ id: 'tx2', bank: 'paypay', date: new Date('2025-01-03'), description: '費用', credit: 0, debit: 2000, balance: 8000, memo: 'm2', tag: null },
 			],
 			skipDuplicates: true,
 		});
 
-		// 3) エクスポート（簡易検証）
+		// 3) TagAssignment 付与（売上のみ SES）
+		await prisma.tagAssignment.create({ data: { transactionId: 'tx1', tagId: leaf!.id } });
+
+		// 4) エクスポート（簡易検証: 売上行にSESパス含まれる）
 		const res = await exportGET({ url: 'http://localhost/api/export?bank=paypay' } as any);
 		expect(res.status).toBe(200);
 		const csv = await resText(res);

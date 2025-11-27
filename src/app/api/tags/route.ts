@@ -72,3 +72,27 @@ export async function PATCH(req: NextRequest) {
   }
 
 }
+
+// DELETE /api/tags?id=...: 削除（子タグ/割当がある場合は409）
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+    const tag = await prisma.tag.findUnique({ where: { id }, include: { children: true, assignments: { take: 1 } } });
+    if (!tag) return NextResponse.json({ error: 'Tag not found' }, { status: 404 });
+    if (tag.children && tag.children.length > 0) {
+      return NextResponse.json({ error: 'Tag has children' }, { status: 409 });
+    }
+    if (tag.assignments && tag.assignments.length > 0) {
+      return NextResponse.json({ error: 'Tag is assigned to transactions' }, { status: 409 });
+    }
+
+    await prisma.tag.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('[API /tags DELETE]', error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}

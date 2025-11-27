@@ -1,161 +1,190 @@
+"use client";
 
-'use client';
-
-import React, { useEffect, useMemo, useState } from 'react';
-import { DataGrid, type Column } from 'react-data-grid';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { defaultColumnOptions } from '@/utils/gridDefaults';
+import BankSelect from "@/components/BankSelect";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ReportResponseMonthly } from "@/types/report";
 import {
-  aggregateStatement,
-  toTxInput,
-  type TxInput,
-  type StatementLine
-} from '@/utils/aggregateStatement';
-import type { TransactionRow } from '@/types/transaction';
+  buildReportColumnsDepth,
+  computeMaxDepth,
+  flattenVisibleMonthly,
+  ReportRow,
+} from "@/utils/reportGrid";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DataGrid } from "react-data-grid";
 
-type TaglessMode = 'default' | 'empty-only' | 'never' | 'keywords';
-
-type AggRow = {
-  id: string;
-  tag: string;
-  side: string;
-  amount: number;
-  aggregated: boolean;
-  index?: number;
-};
+// 旧実装の単一列集計型は不要になった
 
 export default function AggregatePanel() {
-  const [txs, setTxs] = useState<TxInput[] | null>(null);
-  const [lines, setLines] = useState<StatementLine[] | null>(null);
+  const [from, setFrom] = useState<string>("");
+  const [to, setTo] = useState<string>("");
+  const [bank, setBank] = useState<
+    "paypay" | "gmo" | "sbi" | "mizuhoebiz" | "mizuhobizweb" | "all"
+  >("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<ReportResponseMonthly | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // UI options for aggregateStatement
-  const [dropZero, setDropZero] = useState(true);
-  const [taglessMode, setTaglessMode] = useState<TaglessMode>('default');
-  const [keywords, setKeywords] = useState('notag'); // comma-separated
-
-  const isTagless = useMemo(() => {
-    return (tag: string | null | undefined) => {
-      if (taglessMode === 'never') return false;
-      if (tag == null) return true;
-      const t = tag.trim();
-      if (taglessMode === 'empty-only') return t.length === 0;
-      if (taglessMode === 'keywords') {
-        const set = new Set(
-          keywords
-            .split(',')
-            .map((s) => s.trim().toLowerCase())
-            .filter(Boolean)
-        );
-        return t.length === 0 || set.has(t.toLowerCase());
-      }
-      // default: empty or "notag" (case-insensitive)
-      return t.length === 0 || t.toLowerCase() === 'notag';
-    };
-  }, [keywords, taglessMode]);
-
-  const handleAggregate = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/transactions/all');
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (bank && bank !== "all") params.set("bank", bank);
+      const qs = params.toString();
+      const url = qs ? `/api/report?${qs}` : "/api/report";
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`failed: ${res.status}`);
-      const data: TransactionRow[] = await res.json();
-      const nextTxs: TxInput[] = data.map(toTxInput);
-      setTxs(nextTxs);
-      const aggregated = aggregateStatement(nextTxs, { isTagless, dropZero });
-      setLines(aggregated);
+      const json: ReportResponseMonthly = await res.json();
+      setData(json);
+      // 初回は第1階層だけ展開
+      const next = new Set<string>();
+      (json.tree || []).forEach((n) => next.add(n.id));
+      setExpanded(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown error');
+      setError(e instanceof Error ? e.message : "unknown error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [from, to, bank]);
 
-  // Re-aggregate when options change
   useEffect(() => {
-    if (!txs) return;
-    setLines(aggregateStatement(txs, { isTagless, dropZero }));
-  }, [txs, isTagless, dropZero]);
+    // 初期ロード
+    fetchReport();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rows: AggRow[] = useMemo(() => {
-    if (!lines) return [];
-    return lines.map((l, i) => ({
-      id: `${i}`,
-      tag: l.tag == null ? '' : typeof l.tag === 'string' ? l.tag : '',
-      side: l.side,
-      amount: l.amount,
-      aggregated: l.aggregated,
-      index: l.index
-    }));
-  }, [lines]);
+  useEffect(() => {
+    // フィルタ変更で自動再取得
+    fetchReport();
+  }, [from, to, bank, fetchReport]);
 
-  const columns: Column<AggRow>[] = useMemo(
-    () => [
-      { key: 'tag', name: 'タグ', width: 180 },
-      { key: 'side', name: '区分', width: 80 },
-      {
-        key: 'amount',
-        name: '金額',
-        width: 120,
-        renderCell: ({ row }) => (
-          <div className="text-right tabular-nums">
-            {row.amount.toLocaleString('ja-JP')}
-          </div>
-        )
-      },
-      { key: 'index', name: '元行Idx', width: 90 }
-    ],
-    []
+  const rows = useMemo<ReportRow[]>(() => {
+    if (!data) return [];
+    return flattenVisibleMonthly(data.tree, expanded);
+  }, [data, expanded]);
+
+  // 月次合計行を計算（階層合計ではなく months 列ごとの全ノード net 和）
+  const monthlyTotals = useMemo(() => {
+    if (!data) return [] as number[];
+    const len = data.months.length;
+    const sums = Array(len).fill(0);
+    function walk(nodes: any[]) {
+      for (const n of nodes) {
+        n.monthly.forEach((m: any, idx: number) => {
+          sums[idx] += (m.credit ?? 0) - (m.debit ?? 0);
+        });
+        if (n.children?.length) walk(n.children);
+      }
+    }
+    walk(data.tree);
+    return sums;
+  }, [data]);
+
+  function toggle(id: string) {
+    const next = new Set(expanded);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpanded(next);
+  }
+  function expandAll() {
+    const all = new Set<string>();
+    collectIds((data?.tree ?? []) as any, all);
+    setExpanded(all);
+  }
+  function collapseAll() {
+    setExpanded(new Set());
+  }
+
+  const months = data?.months ?? [];
+  const maxDepth = useMemo(() => computeMaxDepth(rows), [rows]);
+  const columns = useMemo(
+    () => buildReportColumnsDepth(months, maxDepth, toggle),
+    [months, maxDepth, expanded]
   );
+
+  // DataGrid 行 + 月合計行 (最後)
+  const gridRows = useMemo<ReportRow[]>(() => {
+    if (!data) return [];
+    return [
+      ...rows,
+      {
+        id: "__monthly_total__",
+        name: "月合計",
+        depth: 0,
+        childrenCount: 0,
+        expanded: false,
+        monthlyNet: monthlyTotals,
+        netTotal: monthlyTotals.reduce((a, b) => a + b, 0),
+        isTotalRow: true,
+      },
+    ];
+  }, [rows, monthlyTotals, data]);
+
+  // console.log({ data, rows });
 
   return (
     <section className="space-y-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">全銀行データの集計</CardTitle>
-          <Button onClick={handleAggregate} disabled={loading} variant="default">
-            {loading ? '集計中…' : '集計'}
-          </Button>
+          <CardTitle className="text-base">集計レポート</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button onClick={fetchReport} disabled={loading}>
+              {loading ? "更新中…" : "更新"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">
-              <span className="text-gray-600">0円の行を除外</span>
-              <input
-                type="checkbox"
-                checked={dropZero}
-                onChange={(e) => setDropZero(e.target.checked)}
+              <span className="text-gray-600">From</span>
+              <Input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
               />
             </label>
-
-            <div className="flex items-center gap-2">
-              <span className="text-gray-600">タグなしの判定</span>
-              <Select value={taglessMode} onValueChange={(v) => setTaglessMode(v as TaglessMode)}>
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">空 or "notag"</SelectItem>
-                  <SelectItem value="empty-only">空のみ</SelectItem>
-                  <SelectItem value="keywords">キーワード指定</SelectItem>
-                  <SelectItem value="never">常にタグあり扱い</SelectItem>
-                </SelectContent>
-              </Select>
-              {taglessMode === 'keywords' && (
-                <Input
-                  className="w-64"
-                  placeholder="例: notag, -, 未設定"
-                  value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
+            <label className="flex items-center gap-2">
+              <span className="text-gray-600">To</span>
+              <Input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-gray-600">銀行</span>
+              <div className="w-48">
+                <BankSelect
+                  value={bank as any}
+                  onChange={(v) => setBank(v as any)}
                 />
-              )}
+              </div>
+            </label>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="secondary" onClick={expandAll}>
+                全展開
+              </Button>
+              <Button variant="secondary" onClick={collapseAll}>
+                全折りたたみ
+              </Button>
             </div>
           </div>
+          {/* 現在の条件／APIエコー */}
+          {/* <div className="mt-2 text-xs text-gray-500 space-x-3">
+            <span>
+              条件: from={from || "-"} to={to || "-"} bank={bank || "-"}
+            </span>
+            {data && (
+              <span>
+                API: from={data.from ?? "-"} to={data.to ?? "-"} bank=
+                {data.bank ?? "-"}
+              </span>
+            )}
+          </div> */}
         </CardContent>
       </Card>
 
@@ -170,23 +199,42 @@ export default function AggregatePanel() {
         </Card>
       )}
 
-      {lines && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">集計結果</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full h-[400px]">
-              <DataGrid<AggRow>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">結果</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="h-[520px] border rounded overflow-hidden">
+              <DataGrid
                 columns={columns}
-                rows={rows}
-                rowKeyGetter={(r) => r.id}
-                defaultColumnOptions={defaultColumnOptions}
+                rows={gridRows}
+                rowKeyGetter={(r: ReportRow) => r.id}
               />
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </section>
   );
+}
+
+function formatYen(n: number) {
+  return (n ?? 0).toLocaleString("ja-JP");
+}
+
+function collectIds(nodes: any[], out: Set<string>) {
+  for (const n of nodes) {
+    if (!n) continue;
+    out.add(n.id);
+    if (Array.isArray(n.children)) collectIds(n.children, out);
+  }
+}
+
+// 旧テーブル描画補助関数は不要になったため削除
+
+function formatSignedYen(n: number) {
+  const abs = Math.abs(n).toLocaleString("ja-JP");
+  if (n === 0) return "0";
+  return n < 0 ? `-${abs}` : abs;
 }

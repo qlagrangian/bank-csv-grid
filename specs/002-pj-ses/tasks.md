@@ -66,20 +66,22 @@
   - Spec: 動的カスケード、検索、複数選択、任意深さ対応。既存との後方互換表示。
 - T021: 集計レポート表示（`/Users/shuya/Documents/physical/bank-csv-grid/src/components/AggregatePanel.tsx`）
   - Show: 階層と小計/合計、展開/折りたたみ。
+- T022: タグの作成/編集 UI（拡張: `/Users/shuya/Documents/physical/bank-csv-grid/src/components/TagMasterEditor.tsx, TagSelectEditor.tsx`）
+  - Features: ツリー表示、CRUD（作成/更新/削除）、バリデーション。
 
 ## 運用/監査/パフォーマンス（Ops）
 
-- T022: 監査ログフックの追加（`/Users/shuya/Documents/physical/bank-csv-grid/src/lib/utils.ts` など）
+- T023: 監査ログフックの追加（`/Users/shuya/Documents/physical/bank-csv-grid/src/lib/utils.ts` など）
   - Record: 付与/削除/更新（誰が/いつ/何を → 何に）。
-- T023: マイグレーション適用スクリプトと README 追記（`/Users/shuya/Documents/physical/bank-csv-grid/README.md`）
-- T024: パフォーマンス計測ポイント（計測・ロギング）
+- T024: マイグレーション適用スクリプトと README 追記（`/Users/shuya/Documents/physical/bank-csv-grid/README.md`）
+- T025: パフォーマンス計測ポイント（計測・ロギング）
 
 ## ドキュメント/仕上げ（Polish）
 
-- T025: [P] `quickstart.md` 更新（最新 API/例の整合）
-- T026: [P] `research.md` 更新（設計決定の反映）
-- T027: [P] `data-model.md` 更新（最終スキーマ反映）
-- T028: [P] OpenAPI 更新（スキーマ詳細/例追加）
+- T026: [P] `quickstart.md` 更新（最新 API/例の整合）
+- T027: [P] `research.md` 更新（設計決定の反映）
+- T028: [P] `data-model.md` 更新（最終スキーマ反映）
+- T029: [P] OpenAPI 更新（スキーマ詳細/例追加）
 
 ## 並列実行例（Examples）
 

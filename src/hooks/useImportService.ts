@@ -1,7 +1,7 @@
 // src/hooks/useImportService.ts
-import { useCallback } from 'react';
-import type { TransactionRow } from '@/types/transaction';
 import { useTransactions } from '@/hooks/useTransactions';
+import type { TransactionRow } from '@/types/transaction';
+import { useCallback } from 'react';
 
 /**
  * CSV インポート後の一括登録フック
@@ -22,10 +22,21 @@ export function useImportService(bank: string) {
       if (rows.length === 0) return;
       // (1) API へ一括登録リクエスト
       await fetch('/api/transactions/bulk-register', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(rows),
+        body: JSON.stringify(rows),
       });
+      // (1.5) 未登録時に選択されていたタグ(tagIds)を assignments に反映
+      const payload = rows
+        .map(r => ({ id: r.id, tagIds: r.tagIds ?? [] }))
+        .filter(x => Array.isArray(x.tagIds));
+      if (payload.length > 0) {
+        await fetch('/api/transactions/bulk-tag', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
       // (2) 成功したら最新データを取得（UI 再レンダリング）
       await refresh();
     },

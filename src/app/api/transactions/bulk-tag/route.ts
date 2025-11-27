@@ -1,23 +1,30 @@
 // src/app/api/transactions/bulk-tag/route.ts
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 
 /**
- * 取引行の tag をまとめて更新する PATCH エンドポイント
- * 受信ボディ: [{ id: string; tag?: string }, ...]
+ * TagAssignment 方式で取引行のタグをまとめて置換するエンドポイント
+ * 受信ボディ: Array<{ id: string; tagIds: string[] }>
+ * - 各トランザクションについて既存の割当を全削除→指定IDで再作成
+ * - tagIds が空配列の場合は全削除のみ（未割当）
  */
 export async function PATCH(request: Request) {
-  const rows: { id: string; tag?: string }[] = await request.json();
+  const rows: { id: string; tagIds?: string[] }[] = await request.json();
 
-  // トランザクションで一括更新
-  await prisma.$transaction(
-    rows.map(({ id, tag }) =>
-      prisma.transaction.update({
-        where: { id },
-        data : { tag },
-      })
-    )
-  );
+  const ops: any[] = [];
+  for (const { id, tagIds } of rows) {
+    const unique = Array.from(new Set(tagIds ?? []));
+    ops.push(prisma.tagAssignment.deleteMany({ where: { transactionId: id } }));
+    if (unique.length > 0) {
+      ops.push(
+        prisma.tagAssignment.createMany({
+          data: unique.map((tid) => ({ transactionId: id, tagId: tid })),
+          skipDuplicates: true,
+        })
+      );
+    }
+  }
 
+  await prisma.$transaction(ops);
   return NextResponse.json({ updated: rows.length });
 }

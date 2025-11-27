@@ -26,7 +26,7 @@ export default function TransactionGrid({
   );
 
   return (
-    <div className="w-full h-[600px]">
+    <div className="w-full h-[400px]">
       <DataGrid<TransactionRow>
         columns={columns}
         rows={rows}

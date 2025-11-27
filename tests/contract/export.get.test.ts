@@ -8,7 +8,8 @@ function resToText(res: Response) { return res.text(); }
 describe('GET /api/export', () => {
 	beforeEach(async () => {
 		await resetDb();
-		// 1件だけ準備
+		// タグを作成しタグ割当
+		const t = await prisma.tag.create({ data: { name: 'Legacy' } });
 		await prisma.transaction.create({
 			data: {
 				id: 'tx1',
@@ -19,9 +20,10 @@ describe('GET /api/export', () => {
 				debit: 0,
 				balance: 1000,
 				memo: 'm',
-				tag: 'Legacy',
+				tag: null,
 			},
 		});
+		await prisma.tagAssignment.create({ data: { transactionId: 'tx1', tagId: t.id } });
 	});
 
 	it('returns 200 and CSV text', async () => {

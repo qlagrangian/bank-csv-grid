@@ -1,64 +1,61 @@
-// src/app/page.tsx:1-120　
-'use client';
+// src/app/page.tsx:1-120
+"use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import dynamic             from 'next/dynamic';
-import type { BankCode }   from '@/types/bank';
-import FileImporter        from '@/components/FileImporter';
-import ExportModal         from '@/components/ExportModal';
-import TransactionGrid     from '@/components/TransactionGrid';
-import { useTransactions } from '@/hooks/useTransactions';
-import { useImportService } from '@/hooks/useImportService';
-import AggregatePanel      from '@/components/AggregatePanel';
+import AggregatePanel from "@/components/AggregatePanel";
+import ExportModal from "@/components/ExportModal";
+import FileImporter from "@/components/FileImporter";
+import TransactionGrid from "@/components/TransactionGrid";
+import { useImportService } from "@/hooks/useImportService";
+import { useTransactions } from "@/hooks/useTransactions";
+import type { BankCode } from "@/types/bank";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
 
 const DynamicTagMasterEditor = dynamic(
-  async () => (await import('@/components/TagMasterEditor')).TagMasterEditor,
+  async () => (await import("@/components/TagMasterEditor")).TagMasterEditor,
   { ssr: false }
 );
 
 export default function Page() {
-  const [bank, setBank] = useState<BankCode>('gmo');
+  const [bank, setBank] = useState<BankCode>("gmo");
   const { rows, isLoading, refresh } = useTransactions(bank);
-  const { registerTransactions }     = useImportService(bank);
-  const [localRows, setLocalRows]    = useState(rows);
+  const { registerTransactions } = useImportService(bank);
+  const [localRows, setLocalRows] = useState(rows);
   const [editRegistered, setEditRegistered] = useState(false);
-  const [isSaving, setIsSaving]      = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setLocalRows(rows.map(r => ({ ...r })));
+    setLocalRows(rows.map((r) => ({ ...r })));
   }, [rows]);
 
-  const diff = useMemo(() => ({
-    newRows:      localRows.filter(r => !r.isRegistered && r.tag),
-    changedTags:  localRows.filter(r => {
-      if (!r.isRegistered) return false;
-      const original = rows.find(o => o.id === r.id);
-      return original && original.tag !== r.tag;
-    })
-  }), [localRows, rows]);
+  const diff = useMemo(
+    () => ({
+      newRows: localRows.filter((r) => !r.isRegistered && r.tag),
+      changedTags: localRows.filter((r) => {
+        if (!r.isRegistered) return false;
+        const original = rows.find((o) => o.id === r.id);
+        return original && original.tag !== r.tag;
+      }),
+    }),
+    [localRows, rows]
+  );
 
-/* 一括反映 */
+  /* 一括反映 */
   const handleBulkRegister = async () => {
     if (!diff.newRows.length && !diff.changedTags.length) return;
     setIsSaving(true);
 
     try {
       if (diff.newRows.length) {
-        await fetch('/api/transactions/bulk-register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch("/api/transactions/bulk-register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(diff.newRows),
         });
       }
-      if (diff.changedTags.length) {
-        await fetch('/api/transactions/bulk-tag', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(diff.changedTags.map((r) => ({ id: r.id, tag: r.tag }))),
-        });
-      }
+      // 既存行のタグ変更は、セル編集時に /transactions/:id/tags PUT 済みとする
 
-      const newIds     = diff.newRows.map((r) => r.id);
+      const newIds = diff.newRows.map((r) => r.id);
       const changedIds = diff.changedTags.map((r) => r.id);
       setLocalRows((prev) =>
         prev.map((r) =>
@@ -105,13 +102,16 @@ export default function Page() {
       <TransactionGrid
         rows={localRows}
         onRowsChange={setLocalRows}
+        allowEditRegistered={editRegistered}
       />
 
       {/* 一括反映ボタン（既存） */}
       <div className="flex justify-end">
         <button
           onClick={handleBulkRegister}
-          disabled={isSaving || (!diff.newRows.length && !diff.changedTags.length)}
+          disabled={
+            isSaving || (!diff.newRows.length && !diff.changedTags.length)
+          }
           className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
         >
           内部勘定反映

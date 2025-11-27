@@ -11,6 +11,7 @@ export const TransactionRowSchema = z.object({
   balance: z.number().optional(),
   memo: z.string().optional(),
   tag: z.string().optional(),
+  tagIds: z.array(z.string()).optional(),
   isRegistered: z.boolean(),
 });
 

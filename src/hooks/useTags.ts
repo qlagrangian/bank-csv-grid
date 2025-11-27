@@ -1,58 +1,40 @@
-// File: src/hooks/useTags.ts
+// src/hooks/useTags.ts
+"use client";
 
-import useSWR, { mutate } from 'swr';
-import { Tag } from '@/types/tag';
+import type { TagNode } from "@/types/tag";
+import useSWR from "swr";
 
-const TAGS_API = '/api/tags';
-
-// GET
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   });
 
-// カスタムフック
 export function useTags() {
-  const { data, error, isLoading } = useSWR<Tag[]>(TAGS_API, fetcher);
+  const { data, error, isLoading, mutate } = useSWR<TagNode[]>("/api/tags", fetcher);
 
-  // タグ追加
-  const addTag = async (name: string) => {
-    const res = await fetch(TAGS_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+  async function add(name: string, parentId?: string) {
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parentId: parentId ?? null })
     });
-    if (!res.ok) throw new Error('Failed to add tag');
-    await mutate(TAGS_API);
-    return res.json();
-  };
+    if (!res.ok) throw new Error(await res.text());
+    await mutate();
+  }
 
-  // タグ編集
-  const editTag = async (id: string, name: string) => {   // ← id 型を string
-    const res = await fetch(TAGS_API, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name }),
-    });
-    if (!res.ok) throw new Error('Failed to edit tag');
-    await mutate(TAGS_API);
-    return res.json();
-  };
-    // タグ削除
-   const deleteTag = async (id: string) => {
-    const res = await fetch(`${TAGS_API}?id=${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete tag');
-    await mutate(TAGS_API);
-  };
+  async function remove(id: string) {
+    const res = await fetch(`/api/tags?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    await mutate();
+  }
 
   return {
-    tags: data,
+    tree: data ?? [],
     isLoading,
     isError: !!error,
-    addTag,
-    editTag,
-    deleteTag,
-    mutateTags: () => mutate(TAGS_API),
-  };
+    add,
+    remove,
+    refresh: () => mutate()
+  } as const;
 }

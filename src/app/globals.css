@@ -1,8 +1,12 @@
+/* (removed experimental tag-editor-panel positioning helper) */
+
 @import "tailwindcss";
 @import "tw-animate-css";
-@import 'react-data-grid/lib/styles.css';
+@import "react-data-grid/lib/styles.css";
 @tailwind base;
-.rdg-light table { all: unset; }
+.rdg-light table {
+  all: unset;
+}
 
 @custom-variant dark (&:is(.dark *));
 
