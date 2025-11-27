@@ -1,0 +1,6 @@
+- Language: TypeScript across frontend and utils.
+- UI: Tailwind utility classes, small wrapper components in src/components/ui (Button, Card, Select, Input).
+- React-Data-Grid: central grid config via utils/gridDefaults.ts; use generic typing, set rowKeyGetter, avoid unnecessary editors; columns defined via utils/columns.ts for transactions; format numeric cells with locale strings where useful.
+- API: Next.js route handlers in src/app/api; JSON fetch via fetch/SWR hooks.
+- Naming: camelCase for variables, PascalCase for components; Japanese labels in UI where appropriate.
+- Testing: Jest with jsdom, focused unit tests in utils (e.g., aggregateStatement.test.ts).

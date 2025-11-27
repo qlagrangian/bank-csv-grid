@@ -1,0 +1,7 @@
+- Run dev server: `pnpm dev`
+- Run tests: `pnpm test`
+- Build (no lint): `pnpm build`
+- Start production server: `pnpm start`
+- Lint: `pnpm lint`
+- Clean caches: `pnpm clean`
+- Prisma generate (postbuild runs automatically): `pnpm prisma generate`

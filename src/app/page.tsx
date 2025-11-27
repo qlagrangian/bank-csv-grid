@@ -9,6 +9,7 @@ import ExportModal         from '@/components/ExportModal';
 import TransactionGrid     from '@/components/TransactionGrid';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useImportService } from '@/hooks/useImportService';
+import AggregatePanel      from '@/components/AggregatePanel';
 
 const DynamicTagMasterEditor = dynamic(
   async () => (await import('@/components/TagMasterEditor')).TagMasterEditor,
@@ -116,6 +117,8 @@ export default function Page() {
           内部勘定反映
         </button>
       </div>
+      {/* 集計パネル（全銀行を対象） */}
+      <AggregatePanel />
     </main>
   );
 }
