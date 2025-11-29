@@ -38,23 +38,11 @@ export default function TagSelectEditor({
 
   async function handleClear() {
     try {
-      if (row.isRegistered) {
-        await fetch(`/api/transactions/${row.id}/tags`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tagIds: [] }),
-        });
-        onRowChange(
-          { ...row, tag: undefined, isDirty: true, tagIds: [] },
-          true
-        );
-      } else {
-        // 未登録行はローカルに保持して登録時にまとめて反映
-        onRowChange(
-          { ...row, tag: undefined, isDirty: true, tagIds: [] },
-          true
-        );
-      }
+      // DB登録済みでもPending状態にして、ボタン押下時に一括反映
+      onRowChange(
+        { ...row, tag: undefined, isDirty: true, tagIds: [] },
+        true
+      );
     } finally {
       resetAndClose();
     }
@@ -65,13 +53,8 @@ export default function TagSelectEditor({
     const leafId = pendingLeafId!;
     const fullPath = buildPathFromLevels(tree, pendingIds);
     try {
-      if (row.isRegistered) {
-        await fetch(`/api/transactions/${row.id}/tags`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tagIds: [leafId] }),
-        });
-      }
+      // DB登録済みタグを編集した場合も、DB反映せずPending状態にする
+      // 「内部勘定割り当て」ボタン押下時に一括反映
       if (row.tag !== fullPath) {
         onRowChange(
           { ...row, tag: fullPath, isDirty: true, tagIds: [leafId] },
@@ -129,87 +112,39 @@ export default function TagSelectEditor({
     }
   }, [tree, row.tag, pendingIds, levels]);
 
-  // ===== Anchoring & dynamic width =====================================
-  // セル内に配置する不可視アンカー（span）を計測してポータル側を配置
+  // ===== Center positioning & dynamic width =====================================
   const cellAnchorRef = useRef<HTMLSpanElement | null>(null);
-  const [anchorRect, setAnchorRect] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  }>({ top: -9999, left: -9999, width: 0, height: 0 });
-  const [panelWidth, setPanelWidth] = useState<number>(420);
+  const [panelWidth, setPanelWidth] = useState<number>(480);
+  const [panelHeight] = useState<number>(480);
   const COL_WIDTH = 180; // 各階層列の幅
-
-  function measure() {
-    if (!cellAnchorRef.current) return;
-    // 実セル要素を取得 (react-data-grid の gridcell)
-    const cellEl = cellAnchorRef.current.closest(
-      '[role="gridcell"]'
-    ) as HTMLElement | null;
-    const rect = (cellEl ?? cellAnchorRef.current).getBoundingClientRect();
-    setAnchorRect({
-      top: rect.bottom + window.scrollY, // セル下端
-      left: rect.left + window.scrollX, // セル左端（右揃え計算に使用）
-      width: rect.width,
-      height: rect.height,
-    });
-  }
-
-  useLayoutEffect(() => {
-    measure();
-  }, []);
-
-  useEffect(() => {
-    function onResize() {
-      measure();
-    }
-    function onScroll() {
-      measure();
-    }
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true); // capture scroll from parents
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, []);
 
   // 幅は一度広がったら戻らない（最大値を保持）
   useEffect(() => {
     if (typeof window === "undefined") return;
     setPanelWidth((prev) => {
       if (search) {
-        const w = 480;
+        const w = 520;
         return w > prev ? w : prev;
       }
       const cols = levels.length + 1; // 表示列数
       const desired = cols * COL_WIDTH + 32; // 余白込み期待幅
-      const computed = Math.min(window.innerWidth * 0.9, desired);
+      const computed = Math.min(window.innerWidth * 0.85, desired);
       return computed > prev ? computed : prev; // 縮めない
     });
   }, [levels, search]);
 
-  // 画面端からはみ出す場合補正
-  const panelPos = useMemo(() => {
-    const margin = 4;
-    let top = anchorRect.top; // セル下端
-    let left = anchorRect.left + anchorRect.width - panelWidth; // 右揃え
-    if (typeof window !== "undefined") {
-      const vw = window.innerWidth + window.scrollX;
-      const vh = window.innerHeight + window.scrollY;
-      // 横方向補正
-      if (left + panelWidth > vw - margin) left = vw - panelWidth - margin;
-      if (left < margin) left = margin;
-      // 縦方向（下にはみ出す場合は上側へ）
-      const estimatedHeight = 380;
-      if (top + estimatedHeight > vh - margin) {
-        top = anchorRect.top - estimatedHeight - anchorRect.height; // 上に反転
-      }
-      if (top < margin) top = margin;
-    }
-    return { left, top };
-  }, [anchorRect, panelWidth]);
+  // 画面中央に固定配置
+  const panelStyle = useMemo(() => {
+    return {
+      position: 'fixed' as const,
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: panelWidth,
+      maxHeight: `${Math.min(panelHeight, typeof window !== 'undefined' ? window.innerHeight * 0.9 : panelHeight)}px`,
+      maxWidth: typeof window !== 'undefined' ? window.innerWidth * 0.95 : panelWidth,
+    };
+  }, [panelWidth, panelHeight]);
   return (
     <>
       {/* セル内に描画されるアンカー */}
@@ -225,14 +160,10 @@ export default function TagSelectEditor({
               {/* パネル */}
               {/* eslint-disable-next-line */}
               <div
-                // ポータル内の要素。位置はセル計測結果を使ってセット
-                className="absolute p-2 bg-white rounded shadow-lg max-h-[420px] border overflow-hidden flex flex-col tag-editor-panel"
+                // ポータル内の要素。画面中央に固定配置
+                className="p-2 bg-white rounded shadow-2xl border overflow-hidden flex flex-col tag-editor-panel"
                 onMouseDown={(e) => e.stopPropagation()}
-                style={{
-                  top: panelPos.top,
-                  left: panelPos.left,
-                  width: panelWidth,
-                }}
+                style={panelStyle}
               >
                 <div className="flex items-start gap-2 mb-2">
                   <input
@@ -245,6 +176,9 @@ export default function TagSelectEditor({
                       if (e.key === "Escape") {
                         e.stopPropagation();
                         onClose();
+                      } else if (e.key === "Enter" && pendingLeafId) {
+                        e.preventDefault();
+                        commitPending();
                       }
                     }}
                   />
@@ -271,6 +205,17 @@ export default function TagSelectEditor({
                           if (pathIds) {
                             setPendingIds(pathIds);
                             setLevels(pathIds.slice(0, pathIds.length - 1));
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const pathIds = findPathIdsByLeafId(tree, n.id);
+                            if (pathIds) {
+                              setPendingIds(pathIds);
+                              setLevels(pathIds.slice(0, pathIds.length - 1));
+                              commitPending();
+                            }
                           }
                         }}
                       >
@@ -316,7 +261,8 @@ export default function TagSelectEditor({
                         levels,
                         handlePickAtDepth,
                         COL_WIDTH,
-                        pendingLeafId
+                        pendingLeafId,
+                        commitPending
                       )}
                     </div>
                   </>
@@ -384,7 +330,8 @@ function renderLevel(
   levels: string[],
   onPickAtDepth: (id: string, depth: number) => void,
   colWidth = 160,
-  pendingLeafId: string | null
+  pendingLeafId: string | null,
+  onEnterConfirm?: () => void
 ): JSX.Element[] {
   const cols: JSX.Element[] = [];
   let colNodes: Node[] = nodes;
@@ -395,18 +342,28 @@ function renderLevel(
         className="max-h-64 overflow-auto border rounded"
         style={{ width: colWidth }}
       >
-        {colNodes.map((n) => (
-          <div key={n.id}>
-            <button
-              className={`w-full text-left px-2 py-1 hover:bg-gray-100 ${
-                pendingLeafId === n.id ? "bg-blue-50 font-semibold" : ""
-              }`}
-              onClick={() => onPickAtDepth(n.id, depth)}
-            >
-              {n.name}
-            </button>
-          </div>
-        ))}
+        {colNodes.map((n) => {
+          const isLeaf = !n.children || n.children.length === 0;
+          return (
+            <div key={n.id}>
+              <button
+                className={`w-full text-left px-2 py-1 hover:bg-gray-100 ${
+                  pendingLeafId === n.id ? "bg-blue-50 font-semibold" : ""
+                }`}
+                onClick={() => onPickAtDepth(n.id, depth)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && isLeaf && onEnterConfirm) {
+                    e.preventDefault();
+                    onPickAtDepth(n.id, depth);
+                    setTimeout(() => onEnterConfirm(), 0);
+                  }
+                }}
+              >
+                {n.name}
+              </button>
+            </div>
+          );
+        })}
       </div>
     );
     const sel = levels[depth];

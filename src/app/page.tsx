@@ -46,6 +46,7 @@ export default function Page() {
     setIsSaving(true);
 
     try {
+      // 新規行の登録
       if (diff.newRows.length) {
         await fetch("/api/transactions/bulk-register", {
           method: "POST",
@@ -53,7 +54,19 @@ export default function Page() {
           body: JSON.stringify(diff.newRows),
         });
       }
-      // 既存行のタグ変更は、セル編集時に /transactions/:id/tags PUT 済みとする
+
+      // 既存行のタグ変更をDB反映（Pending状態から登録済みへ）
+      if (diff.changedTags.length) {
+        await Promise.all(
+          diff.changedTags.map((r) =>
+            fetch(`/api/transactions/${r.id}/tags`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tagIds: r.tagIds || [] }),
+            })
+          )
+        );
+      }
 
       const newIds = diff.newRows.map((r) => r.id);
       const changedIds = diff.changedTags.map((r) => r.id);

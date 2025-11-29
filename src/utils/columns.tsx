@@ -67,8 +67,7 @@ export function buildColumns(
           draggable: true,
           // 末尾に広がりやすくする
           cellClass: "rdg-tag-cell",
-          editable: (row) =>
-            allowEditRegistered || !row.tag || row.isRegistered === false,
+          editable: (row) => true, // 常に編集可能（Pending・DB登録済みどちらも）
           renderEditCell: (p: RenderEditCellProps<TransactionRow>) => (
             <TagSelectEditor {...p} />
           ),

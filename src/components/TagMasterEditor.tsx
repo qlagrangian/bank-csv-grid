@@ -15,6 +15,7 @@ export const TagMasterEditor: React.FC = () => {
   const [selected, setSelected] = useState<string | null>(null);
   const [childName, setChildName] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // ルートを明示的に選択解除した時にも入力へフォーカス
   useEffect(() => {
@@ -96,7 +97,11 @@ export const TagMasterEditor: React.FC = () => {
           <TagTree
             nodes={tree}
             selectedId={selected}
-            onSelect={(id) => setSelected(id)}
+            onSelect={(id) => {
+              setSelected(id);
+              // タグ選択時に入力フィールドにフォーカス
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }}
             onDelete={handleDelete}
           />
         </div>
@@ -112,9 +117,25 @@ export const TagMasterEditor: React.FC = () => {
               placeholder="子タグ名を入力して Enter"
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddChild()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  // ENTERキーで「追加」ボタンにフォーカス移動
+                  addButtonRef.current?.focus();
+                }
+              }}
             />
-            <Button onClick={handleAddChild} disabled={!childName.trim()}>
+            <Button
+              ref={addButtonRef}
+              onClick={handleAddChild}
+              disabled={!childName.trim()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && childName.trim()) {
+                  e.preventDefault();
+                  handleAddChild();
+                }
+              }}
+            >
               追加
             </Button>
           </div>
@@ -193,33 +214,97 @@ function TreeNode({
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isOpen = expanded.has(node.id);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(node.name);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing) {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const handleRename = async () => {
+    const newName = editName.trim();
+    if (!newName || newName === node.name) {
+      setIsEditing(false);
+      setEditName(node.name);
+      return;
+    }
+    try {
+      // TODO: API呼び出しで名称変更を実装する必要があります
+      // 現時点では名称変更APIがないため、スキップします
+      console.warn("Tag rename API not yet implemented");
+      setIsEditing(false);
+    } catch (e) {
+      console.error("Rename failed:", e);
+      setEditName(node.name);
+      setIsEditing(false);
+    }
+  };
+
+  const indentPx = depth * 16; // 16px per level
+
   return (
     <li>
       <div
-        className={`flex items-center gap-1 pl-${
-          Math.min(depth, 8) * 4
-        } rounded hover:bg-gray-50`}
+        className="flex items-center gap-1 rounded hover:bg-gray-50 border-b border-gray-100"
+        style={{ paddingLeft: `${indentPx}px` }}
       >
         {hasChildren ? (
           <button
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100"
+            className="w-6 h-6 flex items-center justify-center rounded border border-gray-300 bg-white hover:bg-gray-100 hover:border-gray-400 transition-colors text-sm font-semibold"
             onClick={() => onToggle(node.id)}
             aria-label={isOpen ? "折りたたむ" : "展開"}
           >
-            {isOpen ? "-" : "+"}
+            {isOpen ? "−" : "+"}
           </button>
         ) : (
-          <span className="w-5" />
+          <span className="w-6" />
         )}
-        <button
-          className={`px-1 py-0.5 rounded ${
-            selectedId === node.id ? "bg-blue-100" : ""
-          }`}
-          onClick={() => onSelect(node.id)}
-          title={node.name}
-        >
-          {node.name}
-        </button>
+        {isEditing ? (
+          <input
+            ref={editInputRef}
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleRename();
+              } else if (e.key === "Escape") {
+                setIsEditing(false);
+                setEditName(node.name);
+              }
+            }}
+            onBlur={handleRename}
+            className="px-1 py-0.5 border rounded text-sm"
+          />
+        ) : (
+          <button
+            className={`px-1 py-0.5 rounded ${
+              selectedId === node.id ? "bg-blue-100" : ""
+            }`}
+            onClick={() => onSelect(node.id)}
+            onDoubleClick={() => setIsEditing(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSelect(node.id);
+              } else if (e.key === "ArrowRight" && hasChildren) {
+                e.preventDefault();
+                if (!isOpen) onToggle(node.id);
+              } else if (e.key === "ArrowLeft" && hasChildren) {
+                e.preventDefault();
+                if (isOpen) onToggle(node.id);
+              }
+            }}
+            title={node.name}
+          >
+            {node.name}
+          </button>
+        )}
         <button
           className="ml-auto text-xs text-red-600 hover:underline"
           onClick={() => onDelete(node.id, node.name)}
