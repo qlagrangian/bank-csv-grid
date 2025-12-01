@@ -40,6 +40,12 @@ app.post('/api/extract-csv', async (c: Context) => {
   const BodySchema = z
     .object({
       prompt: z.string().optional().default(''),
+      statementType: z.enum(['transfer', 'card']).default('transfer'),
+      bank: z
+        .string()
+        .optional()
+        .transform((s) => (s ?? '').trim())
+        .refine((s) => s.length > 0, 'bank is required'),
       mode: z.string().optional().default('page'),
       pages: z
         .string()
@@ -126,6 +132,11 @@ app.post('/api/extract-csv', async (c: Context) => {
     throw new HTTPException(400, { message: 'Missing PDF file' });
   }
 
+  const statementType = body.statementType;
+  const bank = body.bank;
+  const isTransferStatement = statementType === 'transfer';
+  const memoLabel = isTransferStatement ? '総合振込明細' : 'カード利用明細';
+
   let bytes: Uint8Array | undefined;
   let mimeType = 'application/pdf';
   if (!isRangeMode && file) {
@@ -133,35 +144,33 @@ app.post('/api/extract-csv', async (c: Context) => {
     mimeType = file.type || 'application/pdf';
   }
 
-  const userPrompt = isRangeMode
-    ? `あなたは財務データ抽出の専門家です。
-次の情報が与えられます：(1) 指定された複数の「範囲画像」と、その範囲内のテキスト埋め込み。
-各範囲の中に存在する表をCSVとして抽出してください。もし複数の表が同一範囲にある場合はそれぞれを分けて出力してください。
+  const typeSpecific = isTransferStatement
+    ? `- description は「受取人名・銀行・支店・科目・口座番号」を結合した文字列にすること。
+- withdrawal は「振込金額」または「支払金額」に記載の数値を使用し、同一行に複数数値がある場合は最初に出現する数値を採用すること。
+- memo は必ず「${memoLabel}」とすること。`
+    : `- description は「ご利用店名・ご利用先・摘要」を結合した文字列にすること。
+- withdrawal は必ず「支払金額」欄の数値を使用し、「利用金額」ではなく支払金額を採用すること。
+- memo は必ず「${memoLabel}」とすること。`;
+
+  const userPrompt = `あなたは財務データ抽出の専門家です。
+表が含まれるPDF情報（${isRangeMode ? '範囲画像と範囲内テキスト' : 'PDFとtextMap'}）から、以下の出力スキーマに従ってJSONを返してください。
 出力は JSON のみで、次の形式で返してください：
 {
   "results": [
-    { "title": "<表タイトル>", "csv_text": "<CSVテキスト>" }
+    {
+      "title": "<表タイトル>",
+      "rows": [
+        { "date": "<取引日>", "description": "<内容>", "deposit": 0, "withdrawal": 1234, "balance": "<残高もしくは空>", "memo": "${memoLabel}" }
+      ]
+    }
   ]
 }
-タイトルが特定できない場合は table_1, table_2 のような汎用キーを使用してください。
-数値に含まれるカンマ（例：10,000）はすべて削除し、「10000」として出力してください。
-カンマは数値の区切りとしてではなくCSVの区切り文字としてのみ使用してください。
-コメントや説明は出力に含めないでください。
-${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`
-    : `あなたは財務データ抽出の専門家です。
-次の情報が与えられます：(1) 財務諸表を含むPDF、(2) 各ページのテキスト構造を示すtextMap、(3) 対象ページのリスト。
-対象ページ内に存在する主要な表題（例：貸借対照表、損益計算書、キャッシュ・フロー計算書など）ごとに、対応する表をCSV形式で抽出してください。
-出力は JSON のみで、次の形式で返してください：
-{
-  "results": [
-    { "title": "<表タイトル>", "csv_text": "<CSVテキスト>" }
-  ]
-}
-タイトルが特定できない場合は table_1, table_2 のような汎用キーを使用してください。
-数値に含まれるカンマ（例：10,000）はすべて削除し、「10000」として出力してください。
-カンマは数値の区切りとしてではなくCSVの区切り文字としてのみ使用してください。
-コメントや説明は出力に含めないでください。
-${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`;
+- title が特定できない場合は table_1, table_2 のような汎用キーを使用すること。
+- deposit は常に 0 とすること。withdrawal は通貨記号・円・カンマ・ハイフンを除いた純粋な数値にすること。
+- balance が無い場合は空文字とすること。description/memo は文字列。
+- コメントや説明は出力に含めないこと。
+${typeSpecific}
+${body.prompt ? `追加指示:\n${body.prompt}` : ''}`;
 
   const responseSchema = {
     type: 'object',
@@ -172,9 +181,23 @@ ${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`;
           type: 'object',
           properties: {
             title: { type: 'string' },
-            csv_text: { type: 'string' },
+            rows: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  date: { type: 'string' },
+                  description: { type: 'string' },
+                  deposit: { type: 'number' },
+                  withdrawal: { type: 'number' },
+                  balance: { type: 'string' },
+                  memo: { type: 'string' },
+                },
+                required: ['description', 'withdrawal', 'memo'],
+              },
+            },
           },
-          required: ['title', 'csv_text'],
+          required: ['title', 'rows'],
         },
       },
     },
@@ -184,7 +207,10 @@ ${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`;
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
   const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
-  const parts: any[] = [{ text: userPrompt }];
+  const parts: any[] = [
+    { text: userPrompt },
+    { text: `抽出タイプ: ${statementType}\n銀行: ${bank}` },
+  ];
 
   if (!isRangeMode && bytes) {
     parts.unshift({
@@ -248,7 +274,19 @@ ${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`;
 
   const respText = result.response.text();
 
-  type ModelResult = { results: Array<{ title: string; csv_text: string }> };
+  type ModelResult = {
+    results: Array<{
+      title: string;
+      rows: Array<{
+        date?: string;
+        description: string;
+        deposit?: number;
+        withdrawal: number;
+        balance?: string;
+        memo?: string;
+      }>;
+    }>;
+  };
   let payload: ModelResult;
   try {
     payload = JSON.parse(respText);
@@ -261,9 +299,45 @@ ${body.prompt ? `\n追加指示:\n${body.prompt}` : ''}`;
     payload = JSON.parse(match[0]) as ModelResult;
   }
 
+  const escapeCsv = (value: string) => {
+    if (/[",\n]/.test(value)) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  const normalizeNumberString = (value: any) => {
+    if (typeof value === 'number') return String(Math.trunc(value));
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^\d]/g, '');
+      return cleaned;
+    }
+    return '';
+  };
+
+  const header = '取引日,内容,入金,出金,残高,メモ,銀行';
   const map: Record<string, string> = {};
   for (const item of payload.results || []) {
-    if (item?.title) map[item.title] = (item.csv_text || '').trim();
+    if (!item?.title) continue;
+    const rows = item.rows || [];
+    const csvRows = rows.map((r) => {
+      const date = (r.date ?? '').toString().trim();
+      const description = (r.description ?? '').toString().trim();
+      const withdrawal = normalizeNumberString(r.withdrawal) || '0';
+      const balance = (r.balance ?? '').toString().trim();
+      const memo = (r.memo ?? memoLabel).toString().trim() || memoLabel;
+      const line = [
+        date,
+        description,
+        '0',
+        withdrawal,
+        balance,
+        memo,
+        bank,
+      ].map((v) => escapeCsv(v));
+      return line.join(',');
+    });
+    map[item.title] = [header, ...csvRows].join('\n').trim();
   }
 
   return c.json({

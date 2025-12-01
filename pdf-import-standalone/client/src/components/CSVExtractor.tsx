@@ -10,6 +10,14 @@ import Annotator from 'react-pdf-ner-annotator';
 import 'react-pdf-ner-annotator/css/style.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001';
+const BANK_OPTIONS = [
+  { value: 'gmo', label: 'GMOあおぞら銀行' },
+  { value: 'sbi', label: 'SBI銀行' },
+  { value: 'paypay', label: 'PayPay銀行' },
+  { value: 'mizuhoebiz', label: 'みずほe-ビジネスサイト' },
+  { value: 'mizuhobizweb', label: 'みずほビジネスWEB' },
+] as const;
+type StatementType = 'transfer' | 'card';
 
 type ExtractResult = { title: string; csv: string };
 
@@ -58,6 +66,8 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
   const annotatorRef = useRef<any>(null);
 
   const [mode, setMode] = useState<'page' | 'range'>('page');
+  const [statementType, setStatementType] = useState<StatementType>('transfer');
+  const [bank, setBank] = useState<string>('');
 
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [textMaps, setTextMaps] = useState<TextLayer[]>([]);
@@ -144,6 +154,10 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
       setError('PDFファイルが未選択です');
       return;
     }
+    if (!bank) {
+      setError('銀行を選択してください');
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -163,6 +177,8 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
       fd.append('mode', 'page');
       fd.append('pages', JSON.stringify(selectedPages));
       fd.append('textMap', JSON.stringify(textMap));
+      fd.append('statementType', statementType);
+      fd.append('bank', bank);
       const resp = await fetch(`${API_BASE}/api/extract-csv`, {
         method: 'POST',
         body: fd,
@@ -271,6 +287,8 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
       const fd = new FormData();
       fd.append('mode', 'range');
       fd.append('ranges', JSON.stringify(perRange));
+      fd.append('statementType', statementType);
+      fd.append('bank', bank);
 
       const resp = await fetch(`${API_BASE}/api/extract-csv`, {
         method: 'POST',
@@ -306,6 +324,8 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
     mode,
     areaSelections,
     textMaps,
+    statementType,
+    bank,
   ]);
 
   const handleOnLoadSuccess = useCallback(
@@ -378,6 +398,38 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
       {/* Sidebar */}
       <div className="col-span-3">
         <div className="sticky top-4 border rounded-md p-3 flex flex-col gap-3 bg-white">
+          <div className="font-medium">明細タイプ</div>
+          <div className="flex gap-2">
+            <button
+              className={`text-xs px-2 py-1 border rounded ${statementType === 'transfer' ? 'bg-blue-600 text-white' : 'hover:bg-gray-50'}`}
+              onClick={() => setStatementType('transfer')}
+            >
+              総合振込明細
+            </button>
+            <button
+              className={`text-xs px-2 py-1 border rounded ${statementType === 'card' ? 'bg-blue-600 text-white' : 'hover:bg-gray-50'}`}
+              onClick={() => setStatementType('card')}
+            >
+              カード利用明細
+            </button>
+          </div>
+
+          <div>
+            <div className="font-medium">銀行</div>
+            <select
+              className="w-full border rounded px-2 py-1 text-sm mt-1"
+              value={bank}
+              onChange={(e) => setBank(e.target.value)}
+            >
+              <option value="">選択してください</option>
+              {BANK_OPTIONS.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="font-medium">抽出モード</div>
           <div className="flex gap-2">
             <button
@@ -548,6 +600,7 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
                 ? !selectedPages.length
                 : !areaSelections.length) ||
               !file ||
+              !bank ||
               loading
             }
           >
