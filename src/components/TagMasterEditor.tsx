@@ -14,6 +14,9 @@ export const TagMasterEditor: React.FC = () => {
   const { toast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
   const [childName, setChildName] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvResult, setCsvResult] = useState<string | null>(null);
+  const [importMode, setImportMode] = useState<"merge" | "replace">("merge");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -140,6 +143,100 @@ export const TagMasterEditor: React.FC = () => {
             </Button>
           </div>
           <div className="text-xs text-gray-500">※ 既存名と同親で重複不可</div>
+
+          <div className="mt-4 border-t pt-3 space-y-2">
+            <div className="font-semibold text-sm">CSVインポート / エクスポート</div>
+            <div className="flex gap-2 items-center">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+              />
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={importMode}
+                onChange={(e) => setImportMode(e.target.value as "merge" | "replace")}
+              >
+                <option value="merge">merge</option>
+                <option value="replace">replace</option>
+              </select>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!csvFile}
+                onClick={async () => {
+                  if (!csvFile) return;
+                  setCsvResult(null);
+                  const form = new FormData();
+                  form.append("file", csvFile);
+                  const qs = new URLSearchParams({ mode: importMode, dryRun: "true" });
+                  const resp = await fetch(`/api/tags/import-csv?${qs.toString()}`, {
+                    method: "POST",
+                    body: form,
+                  });
+                  const json = await resp.json();
+                  if (!resp.ok) {
+                    setCsvResult(`error: ${json.error || resp.status}`);
+                    return;
+                  }
+                  setCsvResult(
+                    `dry-run: created=${json.created}, updated=${json.updated}, skipped=${json.skipped}, errors=${json.errors?.length ?? 0}, warnings=${json.warnings?.length ?? 0}`
+                  );
+                }}
+              >
+                Dry-run
+              </Button>
+              <Button
+                size="sm"
+                disabled={!csvFile}
+                onClick={async () => {
+                  if (!csvFile) return;
+                  setCsvResult(null);
+                  const form = new FormData();
+                  form.append("file", csvFile);
+                  const qs = new URLSearchParams({ mode: importMode, dryRun: "false" });
+                  const resp = await fetch(`/api/tags/import-csv?${qs.toString()}`, {
+                    method: "POST",
+                    body: form,
+                  });
+                  const json = await resp.json();
+                  if (!resp.ok) {
+                    setCsvResult(`error: ${json.error || resp.status}`);
+                    return;
+                  }
+                  setCsvResult(
+                    `applied: created=${json.created}, updated=${json.updated}, skipped=${json.skipped}, errors=${json.errors?.length ?? 0}, warnings=${json.warnings?.length ?? 0}`
+                  );
+                }}
+              >
+                Import
+              </Button>
+            </div>
+            <div className="flex gap-2 items-center">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  const resp = await fetch("/api/tags/export-csv");
+                  const text = await resp.text();
+                  const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "tags.csv";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Export CSV
+              </Button>
+            </div>
+            {csvResult && (
+              <div className="text-xs text-gray-700 whitespace-pre-wrap break-all">
+                {csvResult}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Card>
