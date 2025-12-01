@@ -26,6 +26,8 @@ interface PdfExtractorProps {
   file: File | null;
   setExtractedCSV?: (csvs: string[]) => void;
   onExtracted?: (results: Array<ExtractResult>) => void;
+  initialBank?: string;
+  lockBank?: boolean;
 }
 
 const CsvExtractor: React.FC<PdfExtractorProps> = ({
@@ -33,6 +35,8 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
   file,
   setExtractedCSV,
   onExtracted,
+  initialBank,
+  lockBank = false,
 }) => {
   // ------- Types for range selection (local minimal copies) -------
   type Rectangle = { left: number; top: number; width: number; height: number };
@@ -77,6 +81,12 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
   );
 
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialBank) {
+      setBank(initialBank);
+    }
+  }, [initialBank]);
 
   // Delegated click handler to toggle page selection when clicking a rendered PDF page
   const handleAnnotatorClick = useCallback(
@@ -420,6 +430,7 @@ const CsvExtractor: React.FC<PdfExtractorProps> = ({
               className="w-full border rounded px-2 py-1 text-sm mt-1"
               value={bank}
               onChange={(e) => setBank(e.target.value)}
+              disabled={lockBank}
             >
               <option value="">選択してください</option>
               {BANK_OPTIONS.map((b) => (

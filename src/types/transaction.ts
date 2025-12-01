@@ -17,4 +17,8 @@ export interface TransactionRow {
   isRegistered: boolean;
   /** クライアント側だけで使う「未反映フラグ」 */
   isDirty?: boolean;
+  /** PDF明細由来の子行かどうか（UI用） */
+  isLinkedChild?: boolean;
+  /** 子行を持ち編集不可にするフラグ（UI用） */
+  isDeactivated?: boolean;
 }

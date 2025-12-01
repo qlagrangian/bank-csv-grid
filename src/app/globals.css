@@ -127,3 +127,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* PDF紐付け行の色分け */
+.rdg-row-linked {
+  background-color: #e8f0ff;
+}
+
+.rdg-row-deactivated {
+  background-color: #dbeafe;
+}

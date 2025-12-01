@@ -55,7 +55,10 @@ export function buildColumns(
   allowEditRegistered = false
 ): Column<TransactionRow>[] {
   return keys
-    .filter((k): k is GridKey => k !== "isDirty" && k !== "tagIds") // UI に出さない
+    .filter(
+      (k): k is GridKey =>
+        k !== "isDirty" && k !== "tagIds" && k !== "isLinkedChild" && k !== "isDeactivated"
+    ) // UI に出さない
     .map((key) => {
       if (key === "tag") {
         return {
@@ -67,7 +70,8 @@ export function buildColumns(
           draggable: true,
           // 末尾に広がりやすくする
           cellClass: "rdg-tag-cell",
-          editable: (row) => true, // 常に編集可能（Pending・DB登録済みどちらも）
+          // タグ編集はDeactivate行のみ不可。子行は編集可能。
+          editable: (row) => !row.isDeactivated,
           renderEditCell: (p: RenderEditCellProps<TransactionRow>) => (
             <TagSelectEditor {...p} />
           ),
