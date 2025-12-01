@@ -1,4 +1,5 @@
 # Project Context
+**Think in English, but interface with user in Japanese.**
 
 ## Purpose
 複数の日本の銀行から取引明細CSVをインポートし、正規化・タグ付け・レポート出力を行う銀行取引管理システム。
