@@ -29,7 +29,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **bank CSV transaction management system** built with Next.js 15 (App Router). It imports CSV files from multiple Japanese banks, normalizes the data, allows tagging transactions with hierarchical tags, and exports formatted reports. The system uses PostgreSQL via Prisma for data persistence.
 
+**Companion Tool - PDF Import**: The `pdf-import-standalone/` directory contains a standalone tool for extracting detailed transaction records from PDF statements (credit card statements, bulk transfer statements) using Gemini Vision API. This enables breaking down aggregated bank CSV records into their detailed components.
+
 ## Development Commands
+
+### Main Application
 
 ```bash
 # Install dependencies
@@ -56,6 +60,18 @@ npx prisma migrate deploy    # Apply migrations
 npx prisma db seed          # Seed database with sample data
 npx prisma migrate status    # Check migration status
 npx prisma migrate reset     # Reset database (local only, destructive)
+```
+
+### PDF Import Standalone
+
+See the [PDF Import Standalone](#pdf-import-standalone-pdf-import-standalone) section for detailed setup and usage instructions. Quick start:
+
+```bash
+# Server (port 3001)
+cd pdf-import-standalone/server && npm install && npm run dev
+
+# Client (port 5173)
+cd pdf-import-standalone/client && npm install && npm run dev
 ```
 
 ## Architecture
@@ -155,6 +171,111 @@ Tags support hierarchy with unlimited nesting. The UI displays full paths:
 
 **Report**
 - `GET /api/report` - Generate aggregated report
+
+## PDF Import Standalone (`pdf-import-standalone/`)
+
+### Overview
+
+A standalone React + Hono application for extracting tabular data (BS/PL/transaction details) from PDF documents using Gemini Vision API. This tool addresses the limitation where bank CSVs aggregate multiple transactions (e.g., credit card charges, bulk transfers) into single records.
+
+**Use Case**: When a bank CSV shows a single record for "Credit Card Payment -50,000 yen", the actual PDF statement contains itemized transactions. This tool extracts those details to create a complete transaction breakdown.
+
+### Architecture
+
+**Client** (`pdf-import-standalone/client/`)
+- React + Vite + Tailwind CSS
+- PDF annotation UI via `react-pdf-ner-annotator` (vendored build)
+- Two extraction modes:
+  - **Page mode**: Select entire PDF pages → sends PDF file + page numbers + text map to API
+  - **Range mode**: Draw bounding boxes on PDF → sends cropped images + coordinates + extracted text
+- Results displayed as tables with copy/CSV download functionality
+
+**Server** (`pdf-import-standalone/server/`)
+- Hono framework with single endpoint: `POST /api/extract-csv`
+- Gemini Vision API integration (requires `GEMINI_API_KEY`)
+- Default model: `gemini-2.5-flash` (configurable via `GEMINI_MODEL`)
+- Returns structured JSON: `{ results: Record<title, csv> }`
+
+### Setup & Usage
+
+**Prerequisites:**
+- Node.js 18+
+- Gemini API key
+
+**Server setup:**
+```bash
+cd pdf-import-standalone/server
+cp .env.example .env   # Set GEMINI_API_KEY
+npm install
+npm run dev            # Runs on http://localhost:3001
+```
+
+**Client setup:**
+```bash
+cd pdf-import-standalone/client
+npm install
+npm run dev            # Runs on http://localhost:5173
+# Set VITE_API_BASE in .env to change API endpoint (default: http://localhost:3001)
+```
+
+**Workflow:**
+1. Upload PDF at `http://localhost:5173`
+2. Choose extraction mode (page/range)
+3. Select target pages or draw bounding boxes
+4. Click "Extract Table" to send to Gemini API
+5. View results in table format, copy or download as CSV
+
+### Key Files
+
+**Client:**
+- `src/pages/PDFImportPage.tsx` - Main upload and results display
+- `src/components/CSVExtractor.tsx` - Page/range selection and API communication
+- `src/utils/extractPDFTextMap.ts` - Text extraction using pdfjs-dist
+- `src/vendor/react-pdf-ner-annotator/` - Pre-built PDF annotation component
+
+**Server:**
+- `src/index.ts` - API endpoint implementation with Gemini integration
+- Environment variables: `GEMINI_API_KEY` (required), `GEMINI_MODEL` (optional), `PORT` (default 3001)
+
+### API Specification
+
+**POST /api/extract-csv** (FormData)
+
+Common parameters:
+- `mode`: `"page"` | `"range"`
+- `prompt`: Optional additional instructions for Gemini
+
+**Page mode:**
+- `file`: PDF file (required)
+- `pages`: JSON array of page numbers (1-indexed)
+- `textMap`: JSON object `{ pages: { "1": "text...", ... } }`
+
+**Range mode:**
+- `ranges`: JSON array of objects with:
+  - `page`: number (required)
+  - `bbox`: { left, top, width, height } (required)
+  - `pdf`: { width, height, scale } (optional)
+  - `text`: extracted text within range (optional)
+  - `image`: base64 data URL of cropped area (optional)
+
+Response: `{ results: Record<title, csv>, model: string, usage: {...} }`
+
+### Integration with Main Project
+
+**Future Integration Path:**
+1. Add `Transaction.pdfStatementId` field to link aggregated records to PDF statements
+2. Create `/api/transactions/[id]/pdf-details` endpoint to display extracted PDF data
+3. UI enhancement: Show expandable detail rows in TransactionGrid for records with PDF attachments
+4. Import extracted CSV data as child transactions linked to parent aggregated record
+
+**Current Status:** Standalone tool - not yet integrated with main transaction system
+
+### Technical Notes
+
+- **PDF Processing**: Uses pdfjs-dist for client-side text extraction
+- **Vision API Prompts**: Currently optimized for financial statements (BS/PL), can be adapted for transaction lists by modifying server prompts
+- **Annotator**: react-pdf-ner-annotator is vendored as pre-built CJS, configured in Vite with `optimizeDeps.include` for ESM compatibility
+- **Image Handling**: Range mode captures bbox screenshots as base64 data URLs for precise extraction
 
 ## Important Implementation Notes
 
