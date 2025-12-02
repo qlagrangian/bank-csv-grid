@@ -3,6 +3,7 @@ import './globals.css';
 
 import { Inter } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/use-toast';
+import { Navigation } from '@/components/Navigation';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,7 +22,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {/* ここでグローバルにトースト機能を注入 */}
         <ToastProvider>
-          {children}
+          <div className="flex h-screen">
+            <Navigation />
+            <main className="flex-1 overflow-auto">
+              {children}
+            </main>
+          </div>
         </ToastProvider>
       </body>
 

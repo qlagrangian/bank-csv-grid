@@ -10,6 +10,10 @@ import {
   computeMaxDepth,
   flattenVisibleMonthly,
   ReportRow,
+  buildOpeningBalanceRows,
+  buildLoanRows,
+  buildLoanTotalRow,
+  buildCumulativeCashRow,
 } from "@/utils/reportGrid";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataGrid } from "react-data-grid";
@@ -106,21 +110,49 @@ export default function AggregatePanel() {
     [months, maxDepth, expanded]
   );
 
-  // DataGrid 行 + 月合計行 (最後)
+  // DataGrid 行構築: 期首残高 → タグ階層 → 月合計 → 借入 → 借入合計 → 累積ネット
   const gridRows = useMemo<ReportRow[]>(() => {
     if (!data) return [];
+
+    // 1. 期首残高行群
+    const openingRows = buildOpeningBalanceRows(
+      data.openingBalances ?? {},
+      data.months
+    );
+
+    // 2. タグ階層行群
+    const tagRows = rows;
+
+    // 3. 月合計行
+    const totalRow: ReportRow = {
+      id: "__monthly_total__",
+      name: "月合計",
+      depth: 0,
+      childrenCount: 0,
+      expanded: false,
+      monthlyNet: monthlyTotals,
+      netTotal: monthlyTotals.reduce((a, b) => a + b, 0),
+      isTotalRow: true,
+    };
+
+    // 4. 借入行群
+    const loanRows = buildLoanRows(data.loans ?? {}, data.months);
+
+    // 5. 借入合計行
+    const loanTotalRow =
+      loanRows.length > 0 ? buildLoanTotalRow(loanRows) : null;
+
+    // 6. 累積営業ネットキャッシュ行
+    const loanTotals = loanTotalRow?.monthlyNet ?? [];
+    const cumulativeCashRow = buildCumulativeCashRow(monthlyTotals, loanTotals);
+
     return [
-      ...rows,
-      {
-        id: "__monthly_total__",
-        name: "月合計",
-        depth: 0,
-        childrenCount: 0,
-        expanded: false,
-        monthlyNet: monthlyTotals,
-        netTotal: monthlyTotals.reduce((a, b) => a + b, 0),
-        isTotalRow: true,
-      },
+      ...openingRows,
+      ...tagRows,
+      totalRow,
+      ...loanRows,
+      ...(loanTotalRow ? [loanTotalRow] : []),
+      cumulativeCashRow,
     ];
   }, [rows, monthlyTotals, data]);
 

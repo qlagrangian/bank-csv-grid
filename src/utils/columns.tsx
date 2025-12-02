@@ -43,6 +43,8 @@ const JP_NAME: Record<GridKey, string> = {
   tagIds: "タグID", // UIには通常出さない
   isRegistered: "登録済み",
   isDirty: "未反映",
+  isLinkedChild: "PDF子行",
+  isDeactivated: "非活性",
 } as const;
 
 // narrow helper

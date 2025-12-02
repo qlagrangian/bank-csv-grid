@@ -14,7 +14,7 @@
     "jsx": "preserve",
     "incremental": true,
     "typeRoots": ["./types", "./node_modules/@types"],
-    "types": ["jest", "node", "react", "react-dom"],
+    "types": ["node", "react", "react-dom"],
     "plugins": [
       {
         "name": "next"
@@ -25,5 +25,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "prisma/seed.ts"]
+  "exclude": ["node_modules", "prisma/seed.ts", "pdf-import-standalone", "tests", "scripts"]
 }

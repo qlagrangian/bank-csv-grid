@@ -196,13 +196,79 @@ export async function GET(req: NextRequest) {
 		}
 
 		const tree = build(null);
+
+		// === 期首残高計算 ===
+		const openingBalances: { [bank: string]: number[] } = {};
+		const banks = [...new Set(assigns.map((a: any) => a.transaction.bank))];
+
+		for (const bankCode of banks) {
+			const balances = new Array(months.length).fill(0);
+
+			for (let i = 0; i < months.length; i++) {
+				const [y, m] = months[i].split('-').map(Number);
+				const monthStart = new Date(y, m - 1, 1);
+				const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
+
+				// 当月の最初のトランザクション
+				const firstTx = await prisma.transaction.findFirst({
+					where: {
+						bank: bankCode,
+						date: { gte: monthStart, lte: monthEnd },
+					},
+					orderBy: { date: 'asc' },
+				});
+
+				if (firstTx) {
+					// LOGIC-01: 当月に取引あり
+					if (firstTx.credit > 0) {
+						balances[i] = (firstTx.balance ?? 0) - firstTx.credit;
+					} else {
+						balances[i] = (firstTx.balance ?? 0) + firstTx.debit;
+					}
+				} else {
+					// LOGIC-03: 当月に取引なし → 前月以前の最後の取引
+					const lastTx = await prisma.transaction.findFirst({
+						where: {
+							bank: bankCode,
+							date: { lt: monthStart },
+						},
+						orderBy: { date: 'desc' },
+					});
+
+					balances[i] = lastTx?.balance ?? 0;
+				}
+			}
+
+			openingBalances[bankCode] = balances;
+		}
+
+		// === Loan取得・整形 ===
+		const loansFromDB = await prisma.loan.findMany();
+		const loansByBank: {
+			[bank: string]: {
+				[batchName: string]: { amount: number; startIndex: number };
+			};
+		} = {};
+
+		for (const loan of loansFromDB) {
+			if (!loansByBank[loan.bank]) loansByBank[loan.bank] = {};
+
+			const startIndex = months.indexOf(loan.occurrenceYM);
+			loansByBank[loan.bank][loan.batchName] = {
+				amount: loan.amount,
+				startIndex: startIndex >= 0 ? startIndex : -1,
+			};
+		}
+
 		return NextResponse.json({
 			from: fromYMD ? startOfDayLocal(fromYMD).toISOString() : null,
 			to: toYMD ? endOfDayLocal(toYMD).toISOString() : null,
 			bank: bank ?? null,
 			mode,
 			months,
-			tree
+			tree,
+			openingBalances,
+			loans: loansByBank,
 		});
 	} catch (e) {
 		console.error('[API /report GET]', e);

@@ -138,11 +138,11 @@ export async function importTags(
     for (let i = 0; i < r.levels.length; i++) {
       const name = r.levels[i];
       parentPath = parentPath ? `${parentPath}>${name}` : name;
-      const cacheKey = `${parentId ?? ''}/${name}`;
+      const cacheKey: string = `${parentId ?? ''}/${name}`;
       let tag = parentCache.get(cacheKey) || null;
       if (!tag && !dryRun) {
         try {
-          const existing = await prisma.tag.findFirst({
+          const existing: any = await prisma.tag.findFirst({
             where: { name, parentId: parentId ?? null },
           });
           if (existing) {

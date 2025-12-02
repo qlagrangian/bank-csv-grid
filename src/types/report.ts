@@ -19,4 +19,11 @@ export interface ReportResponseMonthly {
 	mode: 'monthly';
 	months: string[]; // YYYY-MM
 	tree: ReportNodeMonthly[];
+	// 新規追加: 期首残高と融資データ
+	openingBalances: { [bank: string]: number[] };
+	loans: {
+		[bank: string]: {
+			[batchName: string]: { amount: number; startIndex: number };
+		};
+	};
 }
