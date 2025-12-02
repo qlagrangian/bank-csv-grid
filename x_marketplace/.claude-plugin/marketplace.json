@@ -1,0 +1,13 @@
+{
+"name": "x_marketplace",
+"owner": {
+"name": "Taku Kutsuzawa"
+},
+"plugins": [
+{
+  "name": "x_plugins",
+  "source": "./x_plugins",
+  "description": "My simple tools for Developing my UI and dealing with my projects."
+}
+]
+}

@@ -10,11 +10,33 @@ export function useTransactions(bank: string) {
     ['/api/transactions?bank=', bank].join(''),
     fetcher
   );
-  // same-reference 配列を返す
-  const rows = useMemo<TransactionRow[]>(() =>
-      (data ?? []).map(r => ({ ...r, isRegistered: true })),
-      [data]
-    );
+
+  const rows = useMemo<TransactionRow[]>(() => {
+    const source = data ?? [];
+    const childPattern = /-(\d{3})(?:-\d{3})*$/;
+    const parentIds = new Set<string>();
+
+    // 子ID（-001形式）から親IDを復元してマーキング
+    for (const r of source) {
+      if (!childPattern.test(r.id)) continue;
+      const parts = r.id.split('-');
+      while (parts.length > 1) {
+        parts.pop();
+        parentIds.add(parts.join('-'));
+      }
+    }
+
+    return source.map((r) => {
+      const isLinkedChild = childPattern.test(r.id);
+      const isDeactivated = parentIds.has(r.id);
+      return {
+        ...r,
+        isRegistered: true,
+        isLinkedChild,
+        isDeactivated,
+      };
+    });
+  }, [data]);
 
   return {
     rows,
