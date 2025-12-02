@@ -2,6 +2,11 @@
 
 Instructions for AI coding assistants using OpenSpec for spec-driven development.
 
+## Project-Specific Reminders (bank-csv-grid)
+- Capabilities: `tag-management` (タグツリー＋CSVインポート/エクスポート), `transaction-tagging`, `pdf-import`, `transaction-pdf-link`.
+- Recent conventions: Tag CSVはLevel列シフト方式（UTF-8, header必須, merge/replace, dry-run対応）。PDF importは statementType/bank/ID連番付与・紐付け実行でTransactionに子行挿入。
+- When touching tags: `TagAssignment`はタグ削除/replace時に外部キー制約に注意。replaceモードはTagAssignment全削除→Tag削除で空にしてから再登録する実装がある。
+
 ## TL;DR Quick Checklist
 
 - Search existing work: `openspec spec list --long`, `openspec list` (use `rg` only for full-text search)

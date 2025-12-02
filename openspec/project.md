@@ -11,6 +11,8 @@
 - 階層的タグによる取引の分類・検索
 - カスタマイズ可能なレポート出力
 - **PDF明細抽出** (`pdf-import-standalone/`): クレジットカードや総合振込のPDF明細から詳細レコードを抽出するスタンドアロンツール
+- **タグCSVインポート/エクスポート**: Level列シフト方式のCSVでタグ階層を一括登録・ダウンロード（merge/replace/dry-run対応）
+- **PDF明細紐付け**: 取引行からPDF抽出画面へ遷移し、抽出結果を子トランザクションとして紐付け（親行のDeactivate/子行挿入、ID連番付与）
 
 ## Tech Stack
 
@@ -31,6 +33,7 @@
 - **Annotation**: react-pdf-ner-annotator (ベンダー版、領域選択UI)
 - **Purpose**: クレジットカード明細・総合振込明細PDFから詳細レコードをCSV抽出
 - **Ports**: Server (3001), Client (5173)
+- **Statement types**: transfer/card を選択し、銀行指定・ID連番付与を行った上で bank-csv-grid に紐付け送信可能
 
 ## Project Conventions
 
@@ -73,6 +76,7 @@ CSV Input → Converter → TransactionRow → API Route → Prisma → PostgreS
 - 表示形式: "親>子>孫"
 - データモデル: `Tag` (自己参照) + `TagAssignment` (多対多)
 - **重要**: `Transaction.tag` カラムはレガシー、新機能では `TagAssignment` を使用
+- インポート/エクスポート: `POST /api/tags/import-csv` (mode=merge|replace, dryRun=true|false, CSVはUTF-8でLevel列ヘッダ必須、空セルは上位を継承、Level1未定義行はエラー)、`GET /api/tags/export-csv` で同フォーマット出力。replace時はTagAssignmentを削除してからタグを再構築する。
 
 #### PDF Import Standalone
 
@@ -85,11 +89,14 @@ PDF Upload → Client (領域選択/ページ選択) → FormData → Server
                                          JSON (CSV形式の表データ)
                                                         ↓
                                          Client (表示・ダウンロード)
+                                                        ↓
+                              bank-csv-grid への紐付け送信（親ID/bank/date付き）
 ```
 
 **抽出モード:**
 - **Page mode**: 指定ページ全体 → PDF + pages + textMap を送信
 - **Range mode**: 矩形選択領域 → 画像 + bbox + テキスト を送信
+- 抽出タイプ: 総合振込明細 / カード利用明細。銀行指定を反映し、IDは `親ID-001` 形式で付与。紐付け実行で子行を送信。
 
 **統合パス (将来):**
 1. `Transaction.pdfStatementId` でPDF明細とリンク
@@ -137,6 +144,7 @@ PDF Upload → Client (領域選択/ページ選択) → FormData → Server
 - 日付フォーマット統一: `YYYY/M/D` (ゼロパディングなし)
 - 新規取引はクライアントで `nanoid()`、DB保存時に `cuid()` で置換
 - Webpack CSS Loader: esModule互換性のためカスタム設定
+- タグCSV: UTF-8, ヘッダ必須, 最大深さ6, Level空セルは上位継承、Level1未定義行はエラー。replace時はTagAssignment削除→Tag削除の順で再構築。
 
 **データ制約:**
 - `Tag` の `[parentId, name]` はユニーク制約
