@@ -199,7 +199,12 @@ export async function GET(req: NextRequest) {
 
 		// === 期首残高計算 ===
 		const openingBalances: { [bank: string]: number[] } = {};
-		const banks = [...new Set(assigns.map((a: any) => a.transaction.bank))];
+		// 全トランザクションから銀行コードを取得（assignsではなくtransactionテーブル全体から）
+		const bankRecords = await prisma.transaction.findMany({
+			select: { bank: true },
+			distinct: ['bank'],
+		});
+		const banks = bankRecords.map((r) => r.bank).filter(Boolean);
 
 		for (const bankCode of banks) {
 			const balances = new Array(months.length).fill(0);
