@@ -139,10 +139,11 @@ export const TagMasterEditor: React.FC = () => {
           <div className="flex items-center gap-2 text-sm mb-2">
             <span className="font-semibold">タグツリー</span>
             <Button
-              variant={selected === null ? "default" : "outline"}
+              variant={selected === null ? "default" : "secondary"}
               size="sm"
               onClick={() => setSelected(null)}
               title="ルート直下にタグを追加"
+              className={selected === null ? "bg-blue-600 hover:bg-blue-700" : ""}
             >
               + ルートに追加
             </Button>
@@ -159,8 +160,8 @@ export const TagMasterEditor: React.FC = () => {
       {/* 2. アクション (アコーディオン) */}
       <Accordion type="single" collapsible className="w-full" defaultValue="add-tag">
         {/* 2a. 新規タグ追加 */}
-        <AccordionItem value="add-tag">
-          <AccordionTrigger>
+        <AccordionItem value="add-tag" className="border rounded-md">
+          <AccordionTrigger className="bg-green-50 hover:bg-green-100 px-4 font-semibold">
             {selectedNode ? `「${selectedNode.path}」に` : "ルートに"}タグを追加
           </AccordionTrigger>
           <AccordionContent>
@@ -194,8 +195,10 @@ export const TagMasterEditor: React.FC = () => {
         </AccordionItem>
 
         {/* 2b. CSVインポート/エクスポート */}
-        <AccordionItem value="import-export">
-          <AccordionTrigger>CSVインポート / エクスポート</AccordionTrigger>
+        <AccordionItem value="import-export" className="border rounded-md">
+          <AccordionTrigger className="bg-blue-50 hover:bg-blue-100 px-4 font-semibold">
+            CSVインポート / エクスポート
+          </AccordionTrigger>
           <AccordionContent>
             <div className="p-2 space-y-6">
               {/* Export */}
@@ -336,7 +339,7 @@ function TagTree({
   }
 
   return (
-    <ul className="space-y-1">
+    <ul>
       {nodes.map((n) => (
         <TreeNode
           key={n.id}
@@ -406,12 +409,12 @@ function TreeNode({
   return (
     <li>
       <div
-        className="flex items-center gap-1 rounded hover:bg-muted/50 p-1"
+        className="flex items-center gap-1 py-2 px-1 border-b border-gray-200 bg-gray-50/50 hover:bg-gray-100 transition-colors"
         style={{ paddingLeft: `${indentPx + 4}px` }}
       >
         {hasChildren ? (
           <button
-            className="w-6 h-6 flex items-center justify-center rounded border bg-background hover:bg-muted transition-colors text-sm"
+            className="w-6 h-6 flex items-center justify-center rounded border bg-white hover:bg-gray-200 transition-colors text-sm shadow-sm"
             onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
             aria-label={isOpen ? "折りたたむ" : "展開"}
           >
@@ -421,8 +424,10 @@ function TreeNode({
           <span className="w-6" />
         )}
         <div
-            className={`flex-1 cursor-pointer rounded px-2 py-1 ${
-              selectedId === node.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+            className={`flex-1 cursor-pointer px-2 py-1 transition-colors ${
+              selectedId === node.id
+                ? "bg-blue-500 text-white rounded font-semibold"
+                : "hover:bg-white hover:shadow-sm rounded"
             }`}
             onClick={() => onSelect(node.id)}
             onDoubleClick={() => setIsEditing(true)}
@@ -431,14 +436,14 @@ function TreeNode({
             {node.name}
           </div>
         <button
-          className="ml-auto text-xs text-destructive/80 hover:underline"
+          className="ml-auto text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors border border-red-200"
           onClick={(e) => {e.stopPropagation(); onDelete(node.id, node.name);}}
         >
           削除
         </button>
       </div>
       {isOpen && hasChildren && (
-        <ul className="space-y-1 mt-1">
+        <ul>
           {node.children.map((c) => (
             <TreeNode
               key={c.id}

@@ -237,11 +237,12 @@ export default function AggregatePanel() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <div className="h-[520px] border rounded overflow-hidden">
+            <div className="border rounded overflow-hidden">
               <DataGrid
                 columns={columns}
                 rows={gridRows}
                 rowKeyGetter={(r: ReportRow) => r.id}
+                style={{ height: '2080px' }}
               />
             </div>
           </div>

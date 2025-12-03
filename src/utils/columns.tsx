@@ -84,7 +84,7 @@ export function buildColumns(
       return {
         key: narrow(key),
         name: JP_NAME[key],
-        resizable: false,
+        resizable: true,
         width: 110,
       } satisfies Column<TransactionRow>;
     });
