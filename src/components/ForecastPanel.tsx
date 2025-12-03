@@ -25,7 +25,7 @@ const MONTHS_TO_RENDER = 12;
 
 function addMonths(base: string, delta: number) {
   const [y, m] = base.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
+  const d = new Date(y || 0, (m || 1) - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -45,8 +45,9 @@ function emptyCells(months: string[]) {
 }
 
 function buildInitialRows(months: string[]): ForecastRow[] {
-  const cellsTemplate = emptyCells(months);
-  const firstKey = `m_${months[0]}`;
+  const safeMonths = months.length ? months : [addMonths("1970-01", 0)];
+  const cellsTemplate = emptyCells(safeMonths);
+  const firstKey = `m_${safeMonths[0]}`;
 
   const rows: ForecastRow[] = [
     {
@@ -167,21 +168,43 @@ type Props = {
   actualMonths?: string[];
 };
 
+function normalizeMonth(month: string | undefined | null) {
+  if (!month) return undefined;
+  const m = month.trim();
+  if (/^\d{4}-\d{2}$/.test(m)) return m;
+  return undefined;
+}
+
 function deriveMonths(actual: string[], horizon = MONTHS_TO_RENDER) {
-  const sorted = [...new Set(actual)].sort();
+  const normalized = actual
+    .map((m) => normalizeMonth(m))
+    .filter((m): m is string => Boolean(m));
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(
     now.getMonth() + 1
   ).padStart(2, "0")}`;
-  const baseStart = sorted[0] ?? currentMonth;
-  const lastActual = sorted[sorted.length - 1] ?? baseStart;
-  const needed = Math.max(horizon - sorted.length, 0);
+  if (normalized.length !== actual.length) {
+    console.warn("[ForecastPanel] Dropped invalid actualMonths", {
+      input: actual,
+      normalized,
+    });
+  }
+  const baseList = normalized.length ? normalized : [currentMonth];
+  if (!normalized.length) {
+    console.warn(
+      "[ForecastPanel] actualMonths empty or invalid; falling back to current month",
+      currentMonth
+    );
+  }
+  const uniqueSorted = [...new Set(baseList)].sort();
+  const last = uniqueSorted[uniqueSorted.length - 1];
+  const needed = Math.max(horizon - uniqueSorted.length, 0);
   const future: string[] = [];
   for (let i = 1; i <= needed; i += 1) {
-    future.push(addMonths(lastActual, i));
+    future.push(addMonths(last, i));
   }
-  const months = [...sorted, ...future];
-  return { months, editableStart: addMonths(lastActual, 1) };
+  const months = [...uniqueSorted, ...future];
+  return { months, editableStart: addMonths(last, 1) };
 }
 
 export default function ForecastPanel({ actualMonths = [] }: Props) {

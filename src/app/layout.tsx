@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
-import { Inter } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/use-toast';
 import { Navigation } from '@/components/Navigation';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
+// Google Fonts fetchがオフライン環境で失敗するため、next/font/google は使用しない。
+const inter = { variable: '' as const };
 
 export const metadata: Metadata = {
   title: 'Create Next App',
