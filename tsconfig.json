@@ -25,5 +25,13 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "prisma/seed.ts", "pdf-import-standalone", "tests", "scripts"]
+  "exclude": [
+    "node_modules",
+    "prisma/seed.ts",
+    "pdf-import-standalone",
+    "tests",
+    "scripts",
+    "x_hyperformula",
+    "x_react-data-grid"
+  ]
 }

@@ -4,6 +4,7 @@
 import AggregatePanel from "@/components/AggregatePanel";
 import ExportModal from "@/components/ExportModal";
 import FileImporter from "@/components/FileImporter";
+import ForecastPanel from "@/components/ForecastPanel";
 import TransactionGrid from "@/components/TransactionGrid";
 import { useImportService } from "@/hooks/useImportService";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -39,6 +40,16 @@ export default function Page() {
     }),
     [localRows, rows]
   );
+
+  const actualMonths = useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach((r) => {
+      if (r.date) {
+        set.add(r.date.slice(0, 7));
+      }
+    });
+    return Array.from(set).sort();
+  }, [rows]);
 
   /* 一括反映 */
   const handleBulkRegister = async () => {
@@ -132,6 +143,8 @@ export default function Page() {
       </div>
       {/* 集計パネル（全銀行を対象） */}
       <AggregatePanel />
+      {/* 資金繰り予測パネル */}
+      <ForecastPanel actualMonths={actualMonths} />
     </main>
   );
 }
