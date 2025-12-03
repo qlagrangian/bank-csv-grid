@@ -14,8 +14,11 @@ const header: Record<keyof TransactionRow, string> = {
   balance: '残高',
   memo: 'メモ',
   tag: 'タグ',
+  tagIds: 'タグID',
   isRegistered: '登録済み',
-  isDirty: '未反映',  
+  isDirty: '未反映',
+  isLinkedChild: 'PDF子行',
+  isDeactivated: '非活性',
 };
 
 export function buildColumns(

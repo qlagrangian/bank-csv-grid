@@ -43,6 +43,8 @@ const JP_NAME: Record<GridKey, string> = {
   tagIds: "タグID", // UIには通常出さない
   isRegistered: "登録済み",
   isDirty: "未反映",
+  isLinkedChild: "PDF子行",
+  isDeactivated: "非活性",
 } as const;
 
 // narrow helper
@@ -82,7 +84,7 @@ export function buildColumns(
       return {
         key: narrow(key),
         name: JP_NAME[key],
-        resizable: false,
+        resizable: true,
         width: 110,
       } satisfies Column<TransactionRow>;
     });

@@ -44,9 +44,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
 	}
 }
 
-export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PUT(req: NextRequest, ctx: { params: Promise<Params> }) {
 	try {
-		const id = ctx.params.id;
+		const { id } = await ctx.params;
 		const body = await req.json();
 		const tagIds: string[] = Array.isArray(body?.tagIds) ? body.tagIds : [];
 		if (!Array.isArray(tagIds)) {

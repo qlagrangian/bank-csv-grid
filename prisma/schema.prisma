@@ -62,3 +62,20 @@ model TagAssignment {
 
   @@unique([transactionId, tagId])
 }
+
+model Loan {
+  id          String   @id @default(cuid())
+  bank        String
+  batchName   String
+  amount      Float
+  occurrenceYM String  // YYYY-MM format
+  tagId       String?
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([bank, batchName])
+  @@index([bank])
+  @@index([occurrenceYM])
+  @@index([tagId])
+}

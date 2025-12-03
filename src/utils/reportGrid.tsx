@@ -12,6 +12,9 @@ export interface ReportRow {
   // netTotal は UI では使わないが内部集計用に保持可能
   netTotal: number;
   isTotalRow?: boolean; // 月合計行フラグ
+  isOpeningBalanceRow?: boolean; // 期首残高行
+  isLoanRow?: boolean; // 借入残高行
+  isCumulativeCashRow?: boolean; // 累積営業ネットキャッシュ行
 }
 
 export function flattenVisibleMonthly(
@@ -70,6 +73,24 @@ export function buildReportColumnsDepth(
       width: 160,
       resizable: true,
       renderCell: ({ row }) => {
+        // 期首残高行のスタイル
+        if (row.isOpeningBalanceRow) {
+          if (depth === 0) return <span className="font-semibold bg-yellow-50 px-2 py-1 rounded">{row.name}</span>;
+          return null;
+        }
+
+        // 借入残高行のスタイル
+        if (row.isLoanRow) {
+          if (depth === 0) return <span className="font-semibold text-blue-700">{row.name}</span>;
+          return null;
+        }
+
+        // 累積ネットキャッシュ行のスタイル
+        if (row.isCumulativeCashRow) {
+          if (depth === 0) return <span className="font-bold text-green-700">{row.name}</span>;
+          return null;
+        }
+
         if (row.isTotalRow) {
           // 合計行は最左列にラベル
           if (depth === 0) return <span className="font-semibold">月合計</span>;
@@ -128,4 +149,91 @@ function formatSignedYen(n: number) {
   const abs = Math.abs(n).toLocaleString("ja-JP");
   if (n === 0) return "0";
   return n < 0 ? `-${abs}` : abs;
+}
+
+// === 期首残高行の構築 ===
+export function buildOpeningBalanceRows(
+  openingBalances: { [bank: string]: number[] },
+  months: string[]
+): ReportRow[] {
+  return Object.entries(openingBalances).map(([bank, balances]) => ({
+    id: `__opening_${bank}__`,
+    name: `${bank} 期首残高`,
+    depth: 0,
+    childrenCount: 0,
+    expanded: false,
+    monthlyNet: balances,
+    netTotal: balances.reduce((a, b) => a + b, 0),
+    isOpeningBalanceRow: true,
+  }));
+}
+
+// === 借入残高行の構築 ===
+export function buildLoanRows(
+  loans: {
+    [bank: string]: {
+      [batchName: string]: { amount: number; startIndex: number };
+    };
+  },
+  months: string[]
+): ReportRow[] {
+  const rows: ReportRow[] = [];
+
+  Object.entries(loans).forEach(([bank, batches]) => {
+    Object.entries(batches).forEach(([batchName, { amount, startIndex }]) => {
+      const monthlyNet = months.map((_, i) =>
+        i >= startIndex && startIndex >= 0 ? amount : 0
+      );
+
+      rows.push({
+        id: `__loan_${bank}_${batchName}__`,
+        name: `${bank} > ${batchName}`,
+        depth: 0,
+        childrenCount: 0,
+        expanded: false,
+        monthlyNet,
+        netTotal: monthlyNet.reduce((a, b) => a + b, 0),
+        isLoanRow: true,
+      });
+    });
+  });
+
+  return rows;
+}
+
+// === 借入合計行 ===
+export function buildLoanTotalRow(loanRows: ReportRow[]): ReportRow {
+  const monthlyNet = loanRows[0]?.monthlyNet.map((_, i) =>
+    loanRows.reduce((sum, row) => sum + row.monthlyNet[i], 0)
+  ) ?? [];
+
+  return {
+    id: '__loan_total__',
+    name: '借入合計',
+    depth: 0,
+    childrenCount: 0,
+    expanded: false,
+    monthlyNet,
+    netTotal: monthlyNet.reduce((a, b) => a + b, 0),
+    isLoanRow: true,
+  };
+}
+
+// === 累積営業ネットキャッシュ行 ===
+export function buildCumulativeCashRow(
+  monthlyTotals: number[],
+  loanTotals: number[]
+): ReportRow {
+  const monthlyNet = monthlyTotals.map((total, i) => total - (loanTotals[i] ?? 0));
+
+  return {
+    id: '__cumulative_cash__',
+    name: '累積営業ネットキャッシュ',
+    depth: 0,
+    childrenCount: 0,
+    expanded: false,
+    monthlyNet,
+    netTotal: monthlyNet.reduce((a, b) => a + b, 0),
+    isCumulativeCashRow: true,
+  };
 }

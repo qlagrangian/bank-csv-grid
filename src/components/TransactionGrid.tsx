@@ -57,7 +57,7 @@ export default function TransactionGrid({
   };
 
   return (
-    <div className="w-full h-[400px]">
+    <div className="w-full h-[800px]">
       <DataGrid<TransactionRow>
         columns={columns}
         rows={rows}
@@ -65,6 +65,7 @@ export default function TransactionGrid({
         onRowsChange={onRowsChange}
         defaultColumnOptions={defaultColumnOptions}
         rowClass={rowClass}
+        style={{ height: '100%' }}
       />
     </div>
   );
